@@ -1,512 +1,509 @@
-import React, { useState } from 'react';
-import { Users, Shuffle, Trophy, Plus, Trash2, ArrowRight } from 'lucide-react';
-
-export default function JustDanceTournament() {
-  const [participants, setParticipants] = useState([]);
-  const [newName, setNewName] = useState('');
-  const [tournamentStarted, setTournamentStarted] = useState(false);
-  const [currentRound, setCurrentRound] = useState(1);
-  const [matches, setMatches] = useState([]);
-  const [pools, setPools] = useState([]);
-  const [showRankings, setShowRankings] = useState(false);
-
-  const addParticipant = () => {
-    if (newName.trim() && !tournamentStarted) {
-      setParticipants([...participants, { id: Date.now(), name: newName.trim() }]);
-      setNewName('');
-    }
-  };
-
-  const removeParticipant = (id) => {
-    if (!tournamentStarted) {
-      setParticipants(participants.filter(p => p.id !== id));
-    }
-  };
-
-  const shuffleArray = (array) => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
-
-  const generateRound1 = () => {
-    if (participants.length < 2) return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Just Dance Tournament</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
     
-    const shuffled = shuffleArray(participants);
-    const newMatches = [];
-    
-    for (let i = 0; i < shuffled.length; i += 2) {
-      if (i + 1 < shuffled.length) {
-        newMatches.push({
-          id: Date.now() + i,
-          player1: shuffled[i],
-          player2: shuffled[i + 1],
-          winner: null,
-          poolId: 0,
-          round: 1
-        });
-      } else {
-        // Bye - auto advance to winners
-        newMatches.push({
-          id: Date.now() + i,
-          player1: shuffled[i],
-          player2: null,
-          winner: shuffled[i],
-          poolId: 0,
-          round: 1
-        });
-      }
-    }
-    
-    setMatches(newMatches);
-    setPools([{ id: 0, name: 'All Participants', round: 1, rankRange: null }]);
-    setCurrentRound(1);
-    setTournamentStarted(true);
-  };
-
-  const recordWinner = (matchId, winnerId) => {
-    setMatches(prev => prev.map(match => {
-      if (match.id === matchId && !match.winner) {
-        const winner = winnerId === match.player1.id ? match.player1 : match.player2;
-        return { ...match, winner };
-      }
-      return match;
-    }));
-  };
-
-  const advanceToNextRound = () => {
-    const currentMatches = matches.filter(m => m.round === currentRound);
-    
-    if (!currentMatches.every(m => m.winner)) {
-      alert('Please complete all matches before advancing to the next round!');
-      return;
-    }
-
-    const nextRound = currentRound + 1;
-    const totalPlayers = participants.length;
-    
-    // Calculate pool size for this round (each pool gets half the players from previous)
-    const numPoolsThisRound = Math.pow(2, currentRound);
-    const playersPerPool = Math.ceil(totalPlayers / numPoolsThisRound);
-    
-    // Check if next round will be final (each pool has 2 or fewer players)
-    const isFinalRound = playersPerPool <= 2;
-    
-    // Collect all players with their current pool assignments
-    const currentPoolsData = pools.filter(p => p.round === currentRound);
-    const playerPlacements = [];
-    
-    currentPoolsData.forEach(pool => {
-      const poolMatches = currentMatches.filter(m => m.poolId === pool.id);
-      const winners = poolMatches.map(m => m.winner);
-      const losers = poolMatches.map(m => {
-        if (m.player2 === null) return null;
-        return m.winner.id === m.player1.id ? m.player2 : m.player1;
-      }).filter(l => l !== null);
-      
-      playerPlacements.push({
-        poolId: pool.id,
-        poolRankStart: pool.rankRange ? pool.rankRange.start : 1,
-        winners,
-        losers
-      });
-    });
-    
-    // Create new pools by splitting each previous pool in half
-    const newPools = [];
-    const newMatches = [];
-    let poolIdCounter = 0;
-    
-    playerPlacements.forEach(placement => {
-      const winnersCount = placement.winners.length;
-      const losersCount = placement.losers.length;
-      const totalInPool = winnersCount + losersCount;
-      const halfSize = Math.ceil(totalInPool / 2);
-      
-      // Winners go to top half pool
-      const topPoolRankStart = placement.poolRankStart;
-      const topPoolRankEnd = placement.poolRankStart + halfSize - 1;
-      
-      const topPool = {
-        id: poolIdCounter++,
-        name: `Rank ${topPoolRankStart}-${topPoolRankEnd}`,
-        round: nextRound,
-        rankRange: { start: topPoolRankStart, end: topPoolRankEnd }
-      };
-      newPools.push(topPool);
-      
-      // Shuffle and create matches for top pool (winners)
-      const shuffledWinners = shuffleArray(placement.winners);
-      for (let i = 0; i < shuffledWinners.length; i += 2) {
-        if (i + 1 < shuffledWinners.length) {
-          newMatches.push({
-            id: Date.now() + Math.random(),
-            player1: shuffledWinners[i],
-            player2: shuffledWinners[i + 1],
-            winner: null,
-            poolId: topPool.id,
-            round: nextRound
-          });
-        } else {
-          newMatches.push({
-            id: Date.now() + Math.random(),
-            player1: shuffledWinners[i],
-            player2: null,
-            winner: shuffledWinners[i],
-            poolId: topPool.id,
-            round: nextRound
-          });
-        }
-      }
-      
-      // Losers go to bottom half pool (if any)
-      if (losersCount > 0) {
-        const bottomPoolRankStart = topPoolRankEnd + 1;
-        const bottomPoolRankEnd = placement.poolRankStart + totalInPool - 1;
+    <script type="text/babel">
+        const { useState, useEffect } = React;
         
-        const bottomPool = {
-          id: poolIdCounter++,
-          name: `Rank ${bottomPoolRankStart}-${bottomPoolRankEnd}`,
-          round: nextRound,
-          rankRange: { start: bottomPoolRankStart, end: bottomPoolRankEnd }
-        };
-        newPools.push(bottomPool);
-        
-        // Shuffle and create matches for bottom pool (losers)
-        const shuffledLosers = shuffleArray(placement.losers);
-        for (let i = 0; i < shuffledLosers.length; i += 2) {
-          if (i + 1 < shuffledLosers.length) {
-            newMatches.push({
-              id: Date.now() + Math.random(),
-              player1: shuffledLosers[i],
-              player2: shuffledLosers[i + 1],
-              winner: null,
-              poolId: bottomPool.id,
-              round: nextRound
+        function JustDanceTournament() {
+          const [participants, setParticipants] = useState([]);
+          const [newName, setNewName] = useState('');
+          const [tournamentStarted, setTournamentStarted] = useState(false);
+          const [currentRound, setCurrentRound] = useState(1);
+          const [matches, setMatches] = useState([]);
+          const [pools, setPools] = useState([]);
+          const [showRankings, setShowRankings] = useState(false);
+
+          const addParticipant = () => {
+            if (newName.trim() && !tournamentStarted) {
+              setParticipants([...participants, { id: Date.now(), name: newName.trim() }]);
+              setNewName('');
+            }
+          };
+
+          const removeParticipant = (id) => {
+            if (!tournamentStarted) {
+              setParticipants(participants.filter(p => p.id !== id));
+            }
+          };
+
+          const shuffleArray = (array) => {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+          };
+
+          const generateRound1 = () => {
+            if (participants.length < 2) return;
+            
+            const shuffled = shuffleArray(participants);
+            const newMatches = [];
+            
+            for (let i = 0; i < shuffled.length; i += 2) {
+              if (i + 1 < shuffled.length) {
+                newMatches.push({
+                  id: Date.now() + i,
+                  player1: shuffled[i],
+                  player2: shuffled[i + 1],
+                  winner: null,
+                  poolId: 0,
+                  round: 1
+                });
+              } else {
+                newMatches.push({
+                  id: Date.now() + i,
+                  player1: shuffled[i],
+                  player2: null,
+                  winner: shuffled[i],
+                  poolId: 0,
+                  round: 1
+                });
+              }
+            }
+            
+            setMatches(newMatches);
+            setPools([{ id: 0, name: 'All Participants', round: 1, rankRange: null }]);
+            setCurrentRound(1);
+            setTournamentStarted(true);
+          };
+
+          const recordWinner = (matchId, winnerId) => {
+            setMatches(prev => prev.map(match => {
+              if (match.id === matchId && !match.winner) {
+                const winner = winnerId === match.player1.id ? match.player1 : match.player2;
+                return { ...match, winner };
+              }
+              return match;
+            }));
+          };
+
+          const advanceToNextRound = () => {
+            const currentMatches = matches.filter(m => m.round === currentRound);
+            
+            if (!currentMatches.every(m => m.winner)) {
+              alert('Please complete all matches before advancing to the next round!');
+              return;
+            }
+
+            const nextRound = currentRound + 1;
+            const totalPlayers = participants.length;
+            const numPoolsThisRound = Math.pow(2, currentRound);
+            const playersPerPool = Math.ceil(totalPlayers / numPoolsThisRound);
+            const isFinalRound = playersPerPool <= 2;
+            
+            const currentPoolsData = pools.filter(p => p.round === currentRound);
+            const playerPlacements = [];
+            
+            currentPoolsData.forEach(pool => {
+              const poolMatches = currentMatches.filter(m => m.poolId === pool.id);
+              const winners = poolMatches.map(m => m.winner);
+              const losers = poolMatches.map(m => {
+                if (m.player2 === null) return null;
+                return m.winner.id === m.player1.id ? m.player2 : m.player1;
+              }).filter(l => l !== null);
+              
+              playerPlacements.push({
+                poolId: pool.id,
+                poolRankStart: pool.rankRange ? pool.rankRange.start : 1,
+                winners,
+                losers
+              });
             });
-          } else {
-            newMatches.push({
-              id: Date.now() + Math.random(),
-              player1: shuffledLosers[i],
-              player2: null,
-              winner: shuffledLosers[i],
-              poolId: bottomPool.id,
-              round: nextRound
+            
+            const newPools = [];
+            const newMatches = [];
+            let poolIdCounter = 0;
+            
+            playerPlacements.forEach(placement => {
+              const winnersCount = placement.winners.length;
+              const losersCount = placement.losers.length;
+              const totalInPool = winnersCount + losersCount;
+              const halfSize = Math.ceil(totalInPool / 2);
+              
+              const topPoolRankStart = placement.poolRankStart;
+              const topPoolRankEnd = placement.poolRankStart + halfSize - 1;
+              
+              const topPool = {
+                id: poolIdCounter++,
+                name: `Rank ${topPoolRankStart}-${topPoolRankEnd}`,
+                round: nextRound,
+                rankRange: { start: topPoolRankStart, end: topPoolRankEnd }
+              };
+              newPools.push(topPool);
+              
+              const shuffledWinners = shuffleArray(placement.winners);
+              for (let i = 0; i < shuffledWinners.length; i += 2) {
+                if (i + 1 < shuffledWinners.length) {
+                  newMatches.push({
+                    id: Date.now() + Math.random(),
+                    player1: shuffledWinners[i],
+                    player2: shuffledWinners[i + 1],
+                    winner: null,
+                    poolId: topPool.id,
+                    round: nextRound
+                  });
+                } else {
+                  newMatches.push({
+                    id: Date.now() + Math.random(),
+                    player1: shuffledWinners[i],
+                    player2: null,
+                    winner: shuffledWinners[i],
+                    poolId: topPool.id,
+                    round: nextRound
+                  });
+                }
+              }
+              
+              if (losersCount > 0) {
+                const bottomPoolRankStart = topPoolRankEnd + 1;
+                const bottomPoolRankEnd = placement.poolRankStart + totalInPool - 1;
+                
+                const bottomPool = {
+                  id: poolIdCounter++,
+                  name: `Rank ${bottomPoolRankStart}-${bottomPoolRankEnd}`,
+                  round: nextRound,
+                  rankRange: { start: bottomPoolRankStart, end: bottomPoolRankEnd }
+                };
+                newPools.push(bottomPool);
+                
+                const shuffledLosers = shuffleArray(placement.losers);
+                for (let i = 0; i < shuffledLosers.length; i += 2) {
+                  if (i + 1 < shuffledLosers.length) {
+                    newMatches.push({
+                      id: Date.now() + Math.random(),
+                      player1: shuffledLosers[i],
+                      player2: shuffledLosers[i + 1],
+                      winner: null,
+                      poolId: bottomPool.id,
+                      round: nextRound
+                    });
+                  } else {
+                    newMatches.push({
+                      id: Date.now() + Math.random(),
+                      player1: shuffledLosers[i],
+                      player2: null,
+                      winner: shuffledLosers[i],
+                      poolId: bottomPool.id,
+                      round: nextRound
+                    });
+                  }
+                }
+              }
             });
-          }
-        }
-      }
-    });
-    
-    setMatches([...matches, ...newMatches]);
-    setPools([...pools, ...newPools]);
-    setCurrentRound(nextRound);
-    
-    // If this is the final round, automatically show rankings after a brief moment
-    if (isFinalRound) {
-      setTimeout(() => {
-        // Check if all final matches are complete
-        const finalMatches = [...matches, ...newMatches].filter(m => m.round === nextRound);
-        if (finalMatches.every(m => m.winner)) {
-          setShowRankings(true);
-        }
-      }, 500);
-    }
-  };
+            
+            setMatches([...matches, ...newMatches]);
+            setPools([...pools, ...newPools]);
+            setCurrentRound(nextRound);
+            
+            if (isFinalRound) {
+              setTimeout(() => {
+                const finalMatches = [...matches, ...newMatches].filter(m => m.round === nextRound);
+                if (finalMatches.every(m => m.winner)) {
+                  setShowRankings(true);
+                }
+              }, 500);
+            }
+          };
 
-  const calculateFinalRankings = () => {
-    const lastRound = Math.max(...matches.map(m => m.round));
-    const finalMatches = matches.filter(m => m.round === lastRound);
-    const finalPools = pools.filter(p => p.round === lastRound);
-    
-    const rankings = [];
-    
-    finalPools.forEach(pool => {
-      const poolMatches = finalMatches.filter(m => m.poolId === pool.id);
-      const winners = poolMatches.map(m => m.winner);
-      const losers = poolMatches.map(m => {
-        if (m.player2 === null) return null;
-        return m.winner.id === m.player1.id ? m.player2 : m.player1;
-      }).filter(l => l !== null);
-      
-      // Winners get better ranks within the pool range
-      winners.forEach((player, idx) => {
-        rankings.push({
-          player,
-          rank: pool.rankRange.start + idx,
-          poolName: pool.name,
-          status: 'Winner'
-        });
-      });
-      
-      // Losers get worse ranks within the pool range
-      losers.forEach((player, idx) => {
-        rankings.push({
-          player,
-          rank: pool.rankRange.start + winners.length + idx,
-          poolName: pool.name,
-          status: 'Loser'
-        });
-      });
-    });
-    
-    return rankings.sort((a, b) => a.rank - b.rank);
-  };
+          const calculateFinalRankings = () => {
+            const lastRound = Math.max(...matches.map(m => m.round));
+            const finalMatches = matches.filter(m => m.round === lastRound);
+            const finalPools = pools.filter(p => p.round === lastRound);
+            
+            const rankings = [];
+            
+            finalPools.forEach(pool => {
+              const poolMatches = finalMatches.filter(m => m.poolId === pool.id);
+              const winners = poolMatches.map(m => m.winner);
+              const losers = poolMatches.map(m => {
+                if (m.player2 === null) return null;
+                return m.winner.id === m.player1.id ? m.player2 : m.player1;
+              }).filter(l => l !== null);
+              
+              winners.forEach((player, idx) => {
+                rankings.push({
+                  player,
+                  rank: pool.rankRange.start + idx,
+                  poolName: pool.name,
+                  status: 'Winner'
+                });
+              });
+              
+              losers.forEach((player, idx) => {
+                rankings.push({
+                  player,
+                  rank: pool.rankRange.start + winners.length + idx,
+                  poolName: pool.name,
+                  status: 'Loser'
+                });
+              });
+            });
+            
+            return rankings.sort((a, b) => a.rank - b.rank);
+          };
 
-  const resetTournament = () => {
-    setTournamentStarted(false);
-    setMatches([]);
-    setPools([]);
-    setCurrentRound(1);
-    setShowRankings(false);
-  };
+          const resetTournament = () => {
+            setTournamentStarted(false);
+            setMatches([]);
+            setPools([]);
+            setCurrentRound(1);
+            setShowRankings(false);
+          };
 
-  const MatchCard = ({ match }) => {
-    const pool = pools.find(p => p.id === match.poolId);
-    
-    return (
-      <div className="bg-white rounded-lg shadow-md p-4 mb-3 border-2 border-purple-200">
-        <div className="flex flex-col gap-2">
-          <div className={`flex items-center justify-between p-2 rounded ${
-            match.winner?.id === match.player1?.id ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-50'
-          }`}>
-            <span className="font-semibold">{match.player1?.name}</span>
-            {!match.winner && match.player2 && (
-              <button
-                onClick={() => recordWinner(match.id, match.player1.id)}
-                className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm"
-              >
-                Won
-              </button>
-            )}
-            {match.winner?.id === match.player1?.id && <Trophy className="text-yellow-500" size={20} />}
-          </div>
-          
-          {match.player2 ? (
-            <div className={`flex items-center justify-between p-2 rounded ${
-              match.winner?.id === match.player2?.id ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-50'
-            }`}>
-              <span className="font-semibold">{match.player2.name}</span>
-              {!match.winner && (
-                <button
-                  onClick={() => recordWinner(match.id, match.player2.id)}
-                  className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm"
-                >
-                  Won
-                </button>
-              )}
-              {match.winner?.id === match.player2?.id && <Trophy className="text-yellow-500" size={20} />}
-            </div>
-          ) : (
-            <div className="p-2 bg-blue-100 rounded text-center text-blue-700 font-semibold">
-              ⭐ Bye - Auto Advance
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const currentMatches = matches.filter(m => m.round === currentRound);
-  const currentPools = pools.filter(p => p.round === currentRound);
-  const allMatchesComplete = currentMatches.every(m => m.winner);
-
-  // Check if next round will be final
-  const totalPlayers = participants.length;
-  const numPoolsThisRound = Math.pow(2, currentRound);
-  const playersPerPool = Math.ceil(totalPlayers / numPoolsThisRound);
-  const nextRoundIsFinal = playersPerPool <= 2;
-
-  const finalRankings = showRankings ? calculateFinalRankings() : [];
-
-  // Auto-show rankings when final round is complete
-  React.useEffect(() => {
-    if (allMatchesComplete && nextRoundIsFinal && currentRound > 1 && !showRankings) {
-      setTimeout(() => setShowRankings(true), 1000);
-    }
-  }, [allMatchesComplete, nextRoundIsFinal, currentRound, showRankings]);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-2xl p-8 mb-6">
-          <h1 className="text-4xl font-bold text-center mb-2 text-purple-600 flex items-center justify-center gap-3">
-            <Users size={40} />
-            Just Dance Tournament
-          </h1>
-          <p className="text-center text-gray-600 mb-6">Ranking Pool System</p>
-
-          {!tournamentStarted ? (
-            <div className="space-y-6">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addParticipant()}
-                  placeholder="Enter dancer name"
-                  className="flex-1 px-4 py-2 border-2 border-purple-300 rounded-lg focus:outline-none focus:border-purple-500"
-                />
-                <button
-                  onClick={addParticipant}
-                  className="bg-purple-500 text-white px-6 py-2 rounded-lg hover:bg-purple-600 flex items-center gap-2"
-                >
-                  <Plus size={20} />
-                  Add
-                </button>
-              </div>
-
-              <div className="bg-purple-50 rounded-lg p-4">
-                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                  <Users size={20} />
-                  Participants ({participants.length})
-                </h3>
-                {participants.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">No participants yet. Add dancers above!</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    {participants.map(p => (
-                      <div key={p.id} className="flex items-center justify-between bg-white p-3 rounded shadow">
-                        <span className="font-medium">{p.name}</span>
+          const MatchCard = ({ match }) => {
+            const pool = pools.find(p => p.id === match.poolId);
+            
+            return (
+              <div className="bg-white rounded-lg shadow-md p-4 mb-3 border-2 border-purple-200">
+                <div className="flex flex-col gap-2">
+                  <div className={`flex items-center justify-between p-2 rounded ${
+                    match.winner?.id === match.player1?.id ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-50'
+                  }`}>
+                    <span className="font-semibold">{match.player1?.name}</span>
+                    {!match.winner && match.player2 && (
+                      <button
+                        onClick={() => recordWinner(match.id, match.player1.id)}
+                        className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm"
+                      >
+                        Won
+                      </button>
+                    )}
+                    {match.winner?.id === match.player1?.id && <span className="text-yellow-500">🏆</span>}
+                  </div>
+                  
+                  {match.player2 ? (
+                    <div className={`flex items-center justify-between p-2 rounded ${
+                      match.winner?.id === match.player2?.id ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-50'
+                    }`}>
+                      <span className="font-semibold">{match.player2.name}</span>
+                      {!match.winner && (
                         <button
-                          onClick={() => removeParticipant(p.id)}
-                          className="text-red-500 hover:text-red-700"
+                          onClick={() => recordWinner(match.id, match.player2.id)}
+                          className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-sm"
                         >
-                          <Trash2 size={18} />
+                          Won
+                        </button>
+                      )}
+                      {match.winner?.id === match.player2?.id && <span className="text-yellow-500">🏆</span>}
+                    </div>
+                  ) : (
+                    <div className="p-2 bg-blue-100 rounded text-center text-blue-700 font-semibold">
+                      ⭐ Bye - Auto Advance
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          };
+
+          const currentMatches = matches.filter(m => m.round === currentRound);
+          const currentPools = pools.filter(p => p.round === currentRound);
+          const allMatchesComplete = currentMatches.every(m => m.winner);
+
+          const totalPlayers = participants.length;
+          const numPoolsThisRound = Math.pow(2, currentRound);
+          const playersPerPool = Math.ceil(totalPlayers / numPoolsThisRound);
+          const nextRoundIsFinal = playersPerPool <= 2;
+
+          const finalRankings = showRankings ? calculateFinalRankings() : [];
+
+          useEffect(() => {
+            if (allMatchesComplete && nextRoundIsFinal && currentRound > 1 && !showRankings) {
+              setTimeout(() => setShowRankings(true), 1000);
+            }
+          }, [allMatchesComplete, nextRoundIsFinal, currentRound, showRankings]);
+
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-500 to-red-500 p-6">
+              <div className="max-w-7xl mx-auto">
+                <div className="bg-white rounded-xl shadow-2xl p-8 mb-6">
+                  <h1 className="text-4xl font-bold text-center mb-2 text-purple-600 flex items-center justify-center gap-3">
+                    👥 Just Dance Tournament
+                  </h1>
+                  <p className="text-center text-gray-600 mb-6">Ranking Pool System</p>
+
+                  {!tournamentStarted ? (
+                    <div className="space-y-6">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && addParticipant()}
+                          placeholder="Enter dancer name"
+                          className="flex-1 px-4 py-2 border-2 border-purple-300 rounded-lg focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          onClick={addParticipant}
+                          className="bg-purple-500 text-white px-6 py-2 rounded-lg hover:bg-purple-600 flex items-center gap-2"
+                        >
+                          ➕ Add
                         </button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
 
-              {participants.length >= 2 && (
-                <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
-                  <h4 className="font-bold text-blue-800 mb-2">How it works:</h4>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• <strong>Round 1:</strong> Everyone plays 1v1, winners go to top pool, losers to bottom pool</li>
-                    <li>• <strong>Round 2:</strong> Each pool splits in half - winners to top, losers to bottom (e.g., 1-3, 4-6, 7-9, 10-12)</li>
-                    <li>• <strong>Round 3+:</strong> Pools keep splitting until everyone has their final rank</li>
-                    <li>• <strong>Final Round:</strong> Rankings automatically display when complete!</li>
-                  </ul>
-                </div>
-              )}
+                      <div className="bg-purple-50 rounded-lg p-4">
+                        <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                          👥 Participants ({participants.length})
+                        </h3>
+                        {participants.length === 0 ? (
+                          <p className="text-gray-500 text-center py-4">No participants yet. Add dancers above!</p>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            {participants.map(p => (
+                              <div key={p.id} className="flex items-center justify-between bg-white p-3 rounded shadow">
+                                <span className="font-medium">{p.name}</span>
+                                <button
+                                  onClick={() => removeParticipant(p.id)}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
-              {participants.length >= 2 && (
-                <button
-                  onClick={generateRound1}
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-lg hover:from-purple-600 hover:to-pink-600 font-bold text-lg flex items-center justify-center gap-2"
-                >
-                  <Shuffle size={24} />
-                  Start Tournament
-                </button>
-              )}
-            </div>
-          ) : showRankings ? (
-            <div className="bg-white rounded-lg border-4 border-purple-500 p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-purple-600">🏆 Final Rankings 🏆</h2>
-                <button
-                  onClick={resetTournament}
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                >
-                  New Tournament
-                </button>
-              </div>
-              <div className="space-y-2">
-                {finalRankings.map((ranking) => {
-                  let bgColor = '';
-                  let medal = '';
-                  if (ranking.rank === 1) {
-                    bgColor = 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white';
-                    medal = '🥇';
-                  } else if (ranking.rank === 2) {
-                    bgColor = 'bg-gradient-to-r from-gray-300 to-gray-500 text-white';
-                    medal = '🥈';
-                  } else if (ranking.rank === 3) {
-                    bgColor = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white';
-                    medal = '🥉';
-                  } else {
-                    bgColor = 'bg-gray-100 text-gray-800';
-                  }
-                  
-                  return (
-                    <div key={ranking.player.id} className={`${bgColor} rounded-lg p-4 flex items-center justify-between shadow-md`}>
-                      <div className="flex items-center gap-4">
-                        <span className="text-3xl font-bold w-16 text-center">
-                          {medal || `#${ranking.rank}`}
-                        </span>
+                      {participants.length >= 2 && (
+                        <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
+                          <h4 className="font-bold text-blue-800 mb-2">How it works:</h4>
+                          <ul className="text-sm text-blue-700 space-y-1">
+                            <li>• <strong>Round 1:</strong> Everyone plays 1v1, winners go to top pool, losers to bottom pool</li>
+                            <li>• <strong>Round 2:</strong> Each pool splits in half - winners to top, losers to bottom (e.g., 1-3, 4-6, 7-9, 10-12)</li>
+                            <li>• <strong>Round 3+:</strong> Pools keep splitting until everyone has their final rank</li>
+                            <li>• <strong>Final Round:</strong> Rankings automatically display when complete!</li>
+                          </ul>
+                        </div>
+                      )}
+
+                      {participants.length >= 2 && (
+                        <button
+                          onClick={generateRound1}
+                          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-lg hover:from-purple-600 hover:to-pink-600 font-bold text-lg flex items-center justify-center gap-2"
+                        >
+                          🔀 Start Tournament
+                        </button>
+                      )}
+                    </div>
+                  ) : showRankings ? (
+                    <div className="bg-white rounded-lg border-4 border-purple-500 p-6">
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-3xl font-bold text-purple-600">🏆 Final Rankings 🏆</h2>
+                        <button
+                          onClick={resetTournament}
+                          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                        >
+                          New Tournament
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {finalRankings.map((ranking) => {
+                          let bgColor = '';
+                          let medal = '';
+                          if (ranking.rank === 1) {
+                            bgColor = 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white';
+                            medal = '🥇';
+                          } else if (ranking.rank === 2) {
+                            bgColor = 'bg-gradient-to-r from-gray-300 to-gray-500 text-white';
+                            medal = '🥈';
+                          } else if (ranking.rank === 3) {
+                            bgColor = 'bg-gradient-to-r from-orange-400 to-orange-600 text-white';
+                            medal = '🥉';
+                          } else {
+                            bgColor = 'bg-gray-100 text-gray-800';
+                          }
+                          
+                          return (
+                            <div key={ranking.player.id} className={`${bgColor} rounded-lg p-4 flex items-center justify-between shadow-md`}>
+                              <div className="flex items-center gap-4">
+                                <span className="text-3xl font-bold w-16 text-center">
+                                  {medal || `#${ranking.rank}`}
+                                </span>
+                                <div>
+                                  <p className="text-xl font-bold">{ranking.player.name}</p>
+                                  <p className="text-sm opacity-90">
+                                    Pool: {ranking.poolName}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-3xl">{ranking.rank <= 3 ? '🏆' : '⭐'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center mb-4">
                         <div>
-                          <p className="text-xl font-bold">{ranking.player.name}</p>
-                          <p className="text-sm opacity-90">
-                            Pool: {ranking.poolName}
+                          <h2 className="text-3xl font-bold text-purple-600">Round {currentRound}</h2>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {currentRound === 1 ? 'Initial 1v1 Matches' : `${currentPools.length} Ranking Pools`}
+                            {nextRoundIsFinal && allMatchesComplete && ' - Final Round Complete!'}
                           </p>
                         </div>
+                        <button
+                          onClick={resetTournament}
+                          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                        >
+                          Reset Tournament
+                        </button>
                       </div>
-                      <Trophy size={32} className={ranking.rank <= 3 ? 'opacity-100' : 'opacity-30'} />
+
+                      {currentRound === 1 ? (
+                        <div>
+                          <h3 className="text-xl font-bold mb-3 text-purple-600">All Participants</h3>
+                          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {currentMatches.map(match => (
+                              <MatchCard key={match.id} match={match} />
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {currentPools.map(pool => (
+                            <div key={pool.id} className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-300">
+                              <h4 className="font-bold text-lg mb-3 text-purple-700 text-center">
+                                {pool.name}
+                              </h4>
+                              {currentMatches.filter(m => m.poolId === pool.id).map(match => (
+                                <MatchCard key={match.id} match={match} />
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {allMatchesComplete && !nextRoundIsFinal && (
+                        <button
+                          onClick={advanceToNextRound}
+                          className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-4 rounded-lg hover:from-green-600 hover:to-blue-600 font-bold text-xl flex items-center justify-center gap-2"
+                        >
+                          ➡️ Advance to Round {currentRound + 1}
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h2 className="text-3xl font-bold text-purple-600">Round {currentRound}</h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {currentRound === 1 ? 'Initial 1v1 Matches' : `${currentPools.length} Ranking Pools`}
-                    {nextRoundIsFinal && allMatchesComplete && ' - Final Round Complete!'}
-                  </p>
-                </div>
-                <button
-                  onClick={resetTournament}
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                >
-                  Reset Tournament
-                </button>
-              </div>
+          );
+        }
 
-              {currentRound === 1 ? (
-                <div>
-                  <h3 className="text-xl font-bold mb-3 text-purple-600">All Participants</h3>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {currentMatches.map(match => (
-                      <MatchCard key={match.id} match={match} />
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {currentPools.map(pool => (
-                    <div key={pool.id} className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-300">
-                      <h4 className="font-bold text-lg mb-3 text-purple-700 text-center">
-                        {pool.name}
-                      </h4>
-                      {currentMatches.filter(m => m.poolId === pool.id).map(match => (
-                        <MatchCard key={match.id} match={match} />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {allMatchesComplete && !nextRoundIsFinal && (
-                <button
-                  onClick={advanceToNextRound}
-                  className="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white py-4 rounded-lg hover:from-green-600 hover:to-blue-600 font-bold text-xl flex items-center justify-center gap-2"
-                >
-                  <ArrowRight size={28} />
-                  Advance to Round {currentRound + 1}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+        ReactDOM.render(<JustDanceTournament />, document.getElementById('root'));
+    </script>
+</body>
+</html>
